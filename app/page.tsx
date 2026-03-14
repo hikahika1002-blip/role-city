@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { toPng } from "html-to-image";
 import QRCode from "react-qr-code";
@@ -388,6 +388,49 @@ const postOptions = [
   "明確にできる",
 ] as const;
 
+const nextActionsByRole: Record<Role, string[]> = {
+  育成者: [
+    "最近まわりで伸び悩んでいる人や場面を1つ思い出し、何を支えると前進しそうかを1文で書く",
+    "自分が人の成長を助けられそうなテーマを1つ決めて、明日できる小さな支援行動を1つ決める",
+    "ROLE CITYカードを見せながら『自分は何を育てたい人か』を誰かに説明して反応を聞く",
+  ],
+  支援者: [
+    "身近で困っている人や不便な状況を1つ選び、何が足りないのかを具体的に3つ書く",
+    "自分にできる支援の形を『話を聞く / 情報を渡す / 行動を手伝う』の3つから1つ選ぶ",
+    "ROLE CITYカードを見せて『自分が支えたい対象は誰か』をスタッフや友人に話してみる",
+  ],
+  改善者: [
+    "学校・部活・日常で『非効率だ』と思う流れを1つ選び、どこがムダかを言葉にする",
+    "その問題を『今すぐ変えられる部分』と『仕組みから変える部分』に分けてメモする",
+    "ROLE CITYカードを使って『自分は何を改善したい人か』を説明し、別視点の意見をもらう",
+  ],
+  設計者: [
+    "自分が変えたい社会の仕組みを1つ選び、誰が困っていて何を整えるべきかを1文で書く",
+    "そのテーマについて『対象 / 課題 / 解決策』の3項目を埋めて、小さな企画案の形にする",
+    "ROLE CITYカードを見せて『自分は何を設計したいのか』を話し、ズレや抜けを確認する",
+  ],
+  連結者: [
+    "つながっていない人・情報・地域・機会の中で、結び直したいものを1組選ぶ",
+    "その2者がつながると何が起きるかを想像し、価値を短く書き出す",
+    "ROLE CITYカードを使って『自分がつなぎたいもの』を説明し、紹介できそうな人を探す",
+  ],
+  発信者: [
+    "広めたいテーマを1つ決めて、『誰に / 何を / なぜ』伝えたいのかを整理する",
+    "そのテーマをSNS投稿・短文・一言説明の3パターンで表現してみる",
+    "ROLE CITYカードを見せて『自分が発信で動かしたいもの』を誰かに話して反応を見る",
+  ],
+  創造者: [
+    "自分が表現したいテーマを1つ選び、言葉・画像・デザインのどれで出すか決める",
+    "そのテーマを30分以内で形にできる小作品に落としてみる",
+    "ROLE CITYカードを使って『何を新しく生みたいのか』を説明し、印象に残った点を聞く",
+  ],
+  探究者: [
+    "今いちばん気になる問いを1つ選び、なぜそれが気になるのかを3行で書く",
+    "その問いを深めるために、調べるべき情報源を3つ決める",
+    "ROLE CITYカードを見せて『自分は何を探究したいのか』を話し、別の問いをもらう",
+  ],
+};
+
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -584,7 +627,7 @@ function ChoiceGrid({
 
 function RoleCard({
   mainRole,
-  subRole,
+  subRole: _subRole,
   myRole,
   age,
   affiliation,
@@ -621,7 +664,7 @@ function RoleCard({
 
         <div className="relative mt-3 rounded-2xl bg-white/16 px-3 py-2.5 backdrop-blur">
           <p className="text-[10px] font-black tracking-[0.16em] text-white/70">MAIN ROLE</p>
-          <p className="mt-1 text-sm sm:text-base font-black text-white">
+          <p className="mt-1 text-sm font-black text-white sm:text-base">
             {roleEmojiMap[mainRole]} {mainRole}
           </p>
           <p className="mt-0.5 text-[11px] text-white/80">{roleAreaNames[mainRole]}</p>
@@ -629,9 +672,8 @@ function RoleCard({
       </div>
 
       <div className="grid gap-3 p-3 md:grid-cols-[1.2fr_0.8fr] md:gap-5 md:p-5">
-        {/* スマホでは上、PCでは右 */}
         <div className="flex flex-col items-center gap-3 md:order-2">
-          <div className="w-full flex justify-center">
+          <div className="flex w-full justify-center">
             <CharacterArt
               role={mainRole}
               outfit={character.outfit}
@@ -651,7 +693,6 @@ function RoleCard({
           </div>
         </div>
 
-        {/* スマホでは下、PCでは左 */}
         <div className="md:order-1">
           <div
             className="mb-3 rounded-2xl border px-3 py-3"
@@ -666,13 +707,21 @@ function RoleCard({
 
           <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
             <p className="text-[10px] font-black tracking-[0.16em] text-slate-400">NAME ON CARD</p>
-            <p className="mt-1 text-base sm:text-lg font-black text-slate-900">
+            <p className="mt-1 text-base font-black text-slate-900 sm:text-lg">
               {characterName || "NO NAME"}
             </p>
           </div>
 
           <div className="mb-3">
-            <p className="line-clamp-2 text-sm font-bold leading-6 text-slate-900">
+            <p
+              className="text-sm font-bold leading-6 text-slate-900"
+              style={{
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
               {myRole}
             </p>
           </div>
@@ -762,6 +811,17 @@ export default function Home() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
+  const [isSharing, setIsSharing] = useState(false);
+
+  useEffect(() => {
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+  }, []);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [started, finished, submitted, currentQuestion]);
 
   const question = questions[currentQuestion];
 
@@ -843,6 +903,10 @@ export default function Home() {
       .join(" ");
   }, [actionAnswer, concernAnswers, interestAnswers, result.top1, result.top2, strengthAnswers, suggestedIndustries]);
 
+  const currentNextActions = useMemo(() => {
+    return nextActionsByRole[result.top1];
+  }, [result.top1]);
+
   const canStart = age.trim() !== "" && affiliation.trim() !== "";
   const canGoNext = (answers[question.id] || []).length > 0;
   const canShowCard =
@@ -888,6 +952,7 @@ export default function Home() {
     const dataUrl = await toPng(exportCardRef.current, {
       cacheBust: true,
       pixelRatio: 2,
+      backgroundColor: "#ffffff",
     });
 
     const link = document.createElement("a");
@@ -896,37 +961,33 @@ export default function Home() {
     link.click();
   };
 
-  const [isSharing, setIsSharing] = useState(false);
+  const handleShare = async () => {
+    if (isSharing) return;
 
-const handleShare = async () => {
-  if (isSharing) return;
+    const shareText = `ROLE CITYで ${result.top1} でした。`;
 
-const shareText = `ROLE CITYで ${result.top1} でした。`;
-  
+    try {
+      setIsSharing(true);
 
-  try {
-    setIsSharing(true);
+      if (navigator.share) {
+        await navigator.share({
+          title: "ROLE CITY",
+          text: shareText,
+          url: SITE_URL,
+        });
+        return;
+      }
 
-    if (navigator.share) {
-      await navigator.share({
-        title: "ROLE CITY",
-        text: shareText,
-        url: SITE_URL,
-      });
-      return;
+      window.open(
+        `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(SITE_URL)}`,
+        "_blank"
+      );
+    } catch (err) {
+      console.error("share error", err);
+    } finally {
+      setIsSharing(false);
     }
-
-    window.open(
-      `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(SITE_URL)}`,
-      "_blank"
-    );
-
-  } catch (err) {
-    console.error("share error", err);
-  } finally {
-    setIsSharing(false);
-  }
-};
+  };
 
   const handleSubmit = async () => {
     if (!canShowCard || submitted || isSubmitting) return;
@@ -981,11 +1042,10 @@ const shareText = `ROLE CITYで ${result.top1} でした。`;
             <section className="rounded-[28px] border border-white/80 bg-white/90 p-5 shadow-2xl backdrop-blur sm:p-8">
               <p className="text-sm font-black tracking-[0.26em] text-sky-600">ROLE CITY</p>
 
-              <h1 className="mt-4 text-4xl font-black leading-tight text-slate-900 sm:text-5xl">
-                あなたのオリジナル
-                <br />
-                社会役割カードを作成
-              </h1>
+             <h1 className="mt-4 text-[34px] font-black leading-[1.15] tracking-[-0.03em] text-slate-900 sm:text-[56px] sm:leading-[1.05]">
+  <span className="block">あなたのオリジナル</span>
+  <span className="block">社会役割カードを作成</span>
+</h1>
 
               <p className="mt-5 text-base leading-8 text-slate-600 sm:text-lg">
                 これは
@@ -1203,7 +1263,7 @@ const shareText = `ROLE CITYで ${result.top1} でした。`;
               myRole={
                 canShowCard
                   ? myRole
-                  : "名前・Post質問・興味持続性・役割記述を入力すると、このカードが完成する。"
+                  : "名前・Post質問・探究持続性・役割記述を入力すると、このカードが完成する。"
               }
               age={age}
               affiliation={affiliation}
@@ -1220,18 +1280,18 @@ const shareText = `ROLE CITYで ${result.top1} でした。`;
               カードを画像保存
             </button>
 
-<button
-  onClick={handleShare}
-  disabled={isSharing}
-  className={cn(
-    "rounded-full px-6 py-3 text-sm font-black shadow-lg ring-1 ring-slate-200 transition",
-    isSharing
-      ? "cursor-not-allowed bg-slate-100 text-slate-400"
-      : "bg-white text-slate-900 hover:bg-slate-50"
-  )}
->
-  {isSharing ? "共有中..." : "シェア"}
-</button>
+            <button
+              onClick={handleShare}
+              disabled={isSharing}
+              className={cn(
+                "rounded-full px-6 py-3 text-sm font-black shadow-lg ring-1 ring-slate-200 transition",
+                isSharing
+                  ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                  : "bg-white text-slate-900 hover:bg-slate-50"
+              )}
+            >
+              {isSharing ? "共有中..." : "シェア"}
+            </button>
           </div>
 
           <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -1239,15 +1299,14 @@ const shareText = `ROLE CITYで ${result.top1} でした。`;
             <h2 className="mt-3 text-2xl font-black text-slate-900">次のアクション</h2>
 
             <div className="mt-5 grid gap-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700">
-                ① この役割が活きそうなテーマを1つ考える
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700">
-                ② そのテーマで、社会のどこを変えたいか言葉にする
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700">
-                ③ ROLE CITYカードをスタッフに見せて、役割の話を聞く
-              </div>
+              {currentNextActions.map((action, idx) => (
+                <div
+                  key={action}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium leading-7 text-slate-700"
+                >
+                  {idx + 1}️⃣ {action}
+                </div>
+              ))}
             </div>
           </section>
 
@@ -1324,6 +1383,22 @@ const shareText = `ROLE CITYで ${result.top1} でした。`;
             character={fixedCharacter}
             characterName={characterName}
           />
+
+          <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <p className="text-sm font-black tracking-[0.16em] text-sky-600">NEXT ACTION</p>
+            <h2 className="mt-3 text-2xl font-black text-slate-900">次のアクション</h2>
+
+            <div className="mt-5 grid gap-3">
+              {currentNextActions.map((action, idx) => (
+                <div
+                  key={action}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium leading-7 text-slate-700"
+                >
+                  {idx + 1}️⃣ {action}
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       </main>
     );
@@ -1390,7 +1465,12 @@ const shareText = `ROLE CITYで ${result.top1} でした。`;
                 <p className="text-xs font-black tracking-[0.2em] text-sky-600">LIVE PREVIEW</p>
 
                 <div className="mt-4 space-y-4">
-                  <div className={cn("rounded-[22px] border bg-gradient-to-r p-4 text-white shadow-lg", roleGradientMap[result.top1])}>
+                  <div
+                    className={cn(
+                      "rounded-[22px] border bg-gradient-to-r p-4 text-white shadow-lg",
+                      roleGradientMap[result.top1]
+                    )}
+                  >
                     <div className="flex items-center gap-2">
                       <span className="text-xl">{roleEmojiMap[result.top1]}</span>
                       <span className="text-sm font-black tracking-[0.14em]">CURRENT MAIN ROLE</span>

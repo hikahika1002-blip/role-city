@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
-import { toPng } from "html-to-image";
+import { toBlob } from "html-to-image";
 import QRCode from "react-qr-code";
 
 type Role =
@@ -799,7 +799,7 @@ export default function Home() {
   const [affiliation, setAffiliation] = useState("");
   const [characterName, setCharacterName] = useState("");
 
-  const exportCardRef = useRef<HTMLDivElement | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
   const [answers, setAnswers] = useState<Record<number, string[]>>({});
   const [myRole, setMyRole] = useState("");
@@ -946,19 +946,112 @@ export default function Home() {
     }
   };
 
-  const handleSaveImage = async () => {
-    if (!exportCardRef.current) return;
+  const handleSave = async () => {
+    if (!cardRef.current) return;
 
-    const dataUrl = await toPng(exportCardRef.current, {
-      cacheBust: true,
-      pixelRatio: 2,
-      backgroundColor: "#ffffff",
-    });
+    try {
+      const blob = await toBlob(cardRef.current, {
+        pixelRatio: 3,
+        backgroundColor: "#ffffff",
+        cacheBust: true,
+      });
 
-    const link = document.createElement("a");
-    link.download = `role-city-${characterName || "result"}.png`;
-    link.href = dataUrl;
-    link.click();
+      if (!blob) return;
+
+      const url = URL.createObjectURL(blob);
+
+      const ua = window.navigator.userAgent.toLowerCase();
+      const isIOS =
+        /iphone|ipad|ipod/.test(ua) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+      if (isIOS) {
+        const newWindow = window.open("", "_blank");
+        if (!newWindow) {
+          alert("ポップアップがブロックされました。もう一度タップしてください。");
+          URL.revokeObjectURL(url);
+          return;
+        }
+
+        newWindow.document.write(`
+          <!doctype html>
+          <html lang="ja">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>ROLE CITY CARD 保存</title>
+              <style>
+                body {
+                  margin: 0;
+                  padding: 24px 16px 40px;
+                  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+                  background: #f8fafc;
+                  color: #0f172a;
+                  text-align: center;
+                }
+                .wrap {
+                  max-width: 420px;
+                  margin: 0 auto;
+                }
+                .guide {
+                  font-size: 18px;
+                  font-weight: 700;
+                  line-height: 1.7;
+                  margin-bottom: 16px;
+                }
+                .sub {
+                  font-size: 14px;
+                  color: #475569;
+                  margin-bottom: 20px;
+                }
+                img {
+                  width: 100%;
+                  height: auto;
+                  border-radius: 20px;
+                  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
+                  background: white;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="wrap">
+                <div class="guide">画像を長押し → 「写真に保存」</div>
+                <div class="sub">iPhoneではこの方法がいちばん確実です</div>
+                <img src="${url}" alt="ROLE CITY CARD" />
+              </div>
+            </body>
+          </html>
+        `);
+        newWindow.document.close();
+        return;
+      }
+
+      const file = new File([blob], "role-city-card.png", {
+        type: "image/png",
+      });
+
+      const nav = navigator as Navigator & {
+        canShare?: (data?: ShareData) => boolean;
+      };
+
+      if (nav.share && nav.canShare?.({ files: [file] })) {
+        await nav.share({
+          files: [file],
+          title: "ROLE CITY CARD",
+          text: "ROLE CITYの診断結果カードです",
+        });
+        return;
+      }
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "role-city-card.png";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("save error", error);
+      alert("画像保存に失敗しました");
+    }
   };
 
   const handleShare = async () => {
@@ -1042,10 +1135,10 @@ export default function Home() {
             <section className="rounded-[28px] border border-white/80 bg-white/90 p-5 shadow-2xl backdrop-blur sm:p-8">
               <p className="text-sm font-black tracking-[0.26em] text-sky-600">ROLE CITY</p>
 
-             <h1 className="mt-4 text-[34px] font-black leading-[1.15] tracking-[-0.03em] text-slate-900 sm:text-[56px] sm:leading-[1.05]">
-  <span className="block">あなたのオリジナル</span>
-  <span className="block">社会役割カードを作成</span>
-</h1>
+              <h1 className="mt-4 text-[34px] font-black leading-[1.15] tracking-[-0.03em] text-slate-900 sm:text-[56px] sm:leading-[1.05]">
+                <span className="block">あなたのオリジナル</span>
+                <span className="block">社会役割カードを作成</span>
+              </h1>
 
               <p className="mt-5 text-base leading-8 text-slate-600 sm:text-lg">
                 これは
@@ -1256,7 +1349,7 @@ export default function Home() {
             />
           </section>
 
-          <div ref={exportCardRef}>
+          <div ref={cardRef}>
             <RoleCard
               mainRole={result.top1}
               subRole={result.top2}
@@ -1272,26 +1365,32 @@ export default function Home() {
             />
           </div>
 
-          <div className="mt-2 flex flex-wrap justify-center gap-3">
-            <button
-              onClick={handleSaveImage}
-              className="rounded-full bg-slate-900 px-6 py-3 text-sm font-black text-white shadow-lg hover:bg-slate-800"
-            >
-              カードを画像保存
-            </button>
+          <div className="mt-2 flex flex-col items-center gap-2">
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                onClick={handleSave}
+                className="rounded-full bg-slate-900 px-6 py-3 text-sm font-black text-white shadow-lg hover:bg-slate-800"
+              >
+                カードを保存
+              </button>
 
-            <button
-              onClick={handleShare}
-              disabled={isSharing}
-              className={cn(
-                "rounded-full px-6 py-3 text-sm font-black shadow-lg ring-1 ring-slate-200 transition",
-                isSharing
-                  ? "cursor-not-allowed bg-slate-100 text-slate-400"
-                  : "bg-white text-slate-900 hover:bg-slate-50"
-              )}
-            >
-              {isSharing ? "共有中..." : "シェア"}
-            </button>
+              <button
+                onClick={handleShare}
+                disabled={isSharing}
+                className={cn(
+                  "rounded-full px-6 py-3 text-sm font-black shadow-lg ring-1 ring-slate-200 transition",
+                  isSharing
+                    ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                    : "bg-white text-slate-900 hover:bg-slate-50"
+                )}
+              >
+                {isSharing ? "共有中..." : "シェア"}
+              </button>
+            </div>
+
+            <p className="text-center text-xs text-slate-500">
+              iPhoneは次の画面で画像を長押し → 「写真に保存」
+            </p>
           </div>
 
           <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">

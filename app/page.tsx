@@ -956,79 +956,13 @@ export default function Home() {
         cacheBust: true,
       });
 
-      if (!blob) return;
-
-      const url = URL.createObjectURL(blob);
-
-      const ua = window.navigator.userAgent.toLowerCase();
-      const isIOS =
-        /iphone|ipad|ipod/.test(ua) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-      if (isIOS) {
-        const newWindow = window.open("", "_blank");
-        if (!newWindow) {
-          alert("ポップアップがブロックされました。もう一度タップしてください。");
-          URL.revokeObjectURL(url);
-          return;
-        }
-
-        newWindow.document.write(`
-          <!doctype html>
-          <html lang="ja">
-            <head>
-              <meta charset="UTF-8" />
-              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-              <title>ROLE CITY CARD 保存</title>
-              <style>
-                body {
-                  margin: 0;
-                  padding: 24px 16px 40px;
-                  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-                  background: #f8fafc;
-                  color: #0f172a;
-                  text-align: center;
-                }
-                .wrap {
-                  max-width: 420px;
-                  margin: 0 auto;
-                }
-                .guide {
-                  font-size: 18px;
-                  font-weight: 700;
-                  line-height: 1.7;
-                  margin-bottom: 16px;
-                }
-                .sub {
-                  font-size: 14px;
-                  color: #475569;
-                  margin-bottom: 20px;
-                }
-                img {
-                  width: 100%;
-                  height: auto;
-                  border-radius: 20px;
-                  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
-                  background: white;
-                }
-              </style>
-            </head>
-            <body>
-              <div class="wrap">
-                <div class="guide">画像を長押し → 「写真に保存」</div>
-                <div class="sub">iPhoneではこの方法がいちばん確実です</div>
-                <img src="${url}" alt="ROLE CITY CARD" />
-              </div>
-            </body>
-          </html>
-        `);
-        newWindow.document.close();
+      if (!blob) {
+        alert("画像の生成に失敗しました");
         return;
       }
 
-      const file = new File([blob], "role-city-card.png", {
-        type: "image/png",
-      });
+      const fileName = `role-city-card-${Date.now()}.png`;
+      const file = new File([blob], fileName, { type: "image/png" });
 
       const nav = navigator as Navigator & {
         canShare?: (data?: ShareData) => boolean;
@@ -1043,14 +977,17 @@ export default function Home() {
         return;
       }
 
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "role-city-card.png";
+      a.download = fileName;
+      document.body.appendChild(a);
       a.click();
+      a.remove();
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("save error", error);
-      alert("画像保存に失敗しました");
+      alert("保存に失敗しました。もう一度お試しください。");
     }
   };
 
@@ -1389,7 +1326,7 @@ export default function Home() {
             </div>
 
             <p className="text-center text-xs text-slate-500">
-              iPhoneは次の画面で画像を長押し → 「写真に保存」
+              スマホでは共有画面から「画像を保存」または「ファイルに保存」を選んでください
             </p>
           </div>
 
@@ -1503,7 +1440,7 @@ export default function Home() {
     );
   }
 
-  return (
+    return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#e0f2fe_0%,#f8fbff_35%,#f8fafc_100%)] px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-3xl items-center justify-center">
         <div className="w-full overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-xl backdrop-blur">
@@ -1551,7 +1488,9 @@ export default function Home() {
                   disabled={!canGoNext}
                   className={cn(
                     "rounded-full px-8 py-4 text-base font-black text-white transition sm:text-lg",
-                    canGoNext ? "bg-sky-500 shadow-lg shadow-sky-200 hover:bg-sky-600" : "cursor-not-allowed bg-slate-300"
+                    canGoNext
+                      ? "bg-sky-500 shadow-lg shadow-sky-200 hover:bg-sky-600"
+                      : "cursor-not-allowed bg-slate-300"
                   )}
                 >
                   {currentQuestion === questions.length - 1 ? "結果を見る" : "次へ"}
@@ -1572,7 +1511,9 @@ export default function Home() {
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-xl">{roleEmojiMap[result.top1]}</span>
-                      <span className="text-sm font-black tracking-[0.14em]">CURRENT MAIN ROLE</span>
+                      <span className="text-sm font-black tracking-[0.14em]">
+                        CURRENT MAIN ROLE
+                      </span>
                     </div>
                     <p className="mt-3 text-2xl font-black">{result.top1}</p>
                     <p className="mt-2 text-sm text-white/90">SUB ROLE : {result.top2}</p>

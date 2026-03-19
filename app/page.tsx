@@ -1030,7 +1030,9 @@ export default function Home() {
     setIsSubmitting(true);
     setSubmitMessage("");
 
-    console.log("[DEBUG] schoolId:", schoolId);
+    console.log("[DEBUG] current url:", window.location.href);
+    console.log("[DEBUG] searchParams school:", searchParams.get("school"), "/ school_id:", searchParams.get("school_id"));
+    console.log("[DEBUG] schoolId state:", schoolId);
 
     const payload = {
       age: Number(age),

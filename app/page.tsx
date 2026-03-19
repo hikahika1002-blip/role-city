@@ -800,9 +800,9 @@ export default function Home() {
   const [affiliation, setAffiliation] = useState("");
   const [characterName, setCharacterName] = useState("");
 
-  // 仮説④用: URLパラメータ ?school=XXX を自動取得
+  // URLパラメータ ?school=XXX または ?school_id=XXX を自動取得
   const searchParams = useSearchParams();
-  const schoolId = searchParams.get("school");
+  const schoolId = searchParams.get("school") ?? searchParams.get("school_id");
 
   const cardRef = useRef<HTMLDivElement | null>(null);
 
@@ -1030,6 +1030,8 @@ export default function Home() {
     setIsSubmitting(true);
     setSubmitMessage("");
 
+    console.log("[DEBUG] schoolId:", schoolId);
+
     const payload = {
       age: Number(age),
       affiliation,
@@ -1053,6 +1055,8 @@ export default function Home() {
       character_name: characterName,
       school_id: schoolId,
     };
+
+    console.log("[DEBUG] insert payload:", JSON.stringify(payload, null, 2));
 
     const { error } = await supabase.from("results").insert([payload]);
 

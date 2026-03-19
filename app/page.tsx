@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "./supabase";
 import { toBlob } from "html-to-image";
 import QRCode from "react-qr-code";
@@ -799,6 +800,10 @@ export default function Home() {
   const [affiliation, setAffiliation] = useState("");
   const [characterName, setCharacterName] = useState("");
 
+  // 仮説④用: URLパラメータ ?school=XXX を自動取得
+  const searchParams = useSearchParams();
+  const schoolId = searchParams.get("school");
+
   const cardRef = useRef<HTMLDivElement | null>(null);
 
   const [answers, setAnswers] = useState<Record<number, string[]>>({});
@@ -1046,6 +1051,7 @@ export default function Home() {
       character_item: fixedCharacter.item,
       character_background: fixedCharacter.background,
       character_name: characterName,
+      school_id: schoolId,
     };
 
     const { error } = await supabase.from("results").insert([payload]);
